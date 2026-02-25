@@ -1,13 +1,34 @@
-import { useState } from "react";
-import { UserButton } from "@clerk/clerk-react";
+import { useState, useEffect } from "react";
+import { UserButton, useAuth } from "@clerk/clerk-react";
+import { useNavigate } from "react-router-dom";
+
 import AppShell from "../components/AppShell";
 import ChatInput from "../components/ChatInput";
 import PdfPreviewModal from "../components/PdfPreviewModal";
-import { loadStore, saveStore, addPdf, createChat, pushMsg, updateMsg } from "../lib/store";
+import {
+  loadStore,
+  saveStore,
+  addPdf,
+  createChat,
+  pushMsg,
+  updateMsg,
+} from "../lib/store";
 
 const mid = () => crypto.randomUUID();
 
 export default function Open() {
+  const nav = useNavigate();
+  const { isLoaded, isSignedIn } = useAuth();
+
+  
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (!isSignedIn) nav("/", { replace: true });
+  }, [isLoaded, isSignedIn, nav]);
+
+
+  if (!isLoaded) return null;
+
   const [store, setStore] = useState(() => loadStore());
   const [text, setText] = useState("");
   const [activePdf, setActivePdf] = useState(null);
@@ -66,8 +87,7 @@ export default function Open() {
       const fail = Math.random() < 0.15;
 
       if (fail) {
-        const errText =
-          "Things are a bit hectic on our end. Please retry in a bit.";
+        const errText = "Things are a bit hectic on our end. Please retry in a bit.";
         const n2 = updateMsg(next, next.activeChatId, aiMsgId, {
           text: errText,
           status: "error",

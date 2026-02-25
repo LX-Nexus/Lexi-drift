@@ -1,83 +1,115 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth, useSignIn } from "@clerk/clerk-react";
+import { useAuth, useSignIn, useSignUp } from "@clerk/clerk-react";
 
 export default function Welcome() {
   const nav = useNavigate();
   const { isSignedIn } = useAuth();
-  const { signIn, isLoaded } = useSignIn();
+
+  const { signIn, isLoaded: isSignInLoaded } = useSignIn();
+  const { signUp, isLoaded: isSignUpLoaded } = useSignUp();
+
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
 
-  
-async function onContinue() {
-  if (!isLoaded) return;
+  async function onContinue() {
+    if (!isSignInLoaded || !isSignUpLoaded) return;
 
-
-  if (isSignedIn) {
-    nav("/app/open", { replace: true });
-    return;
-  }
-
-  setError("");
-
-  
-  nav("/boot/a");
-
-  const start = Date.now();
-  const MIN_A = 650; 
-  const MIN_B = 650; 
-
-  const waitMin = async (ms) => {
-    const elapsed = Date.now() - start;
-    const remaining = ms - elapsed;
-    if (remaining > 0) await new Promise((r) => setTimeout(r, remaining));
-  };
-
-  try {
-    const si = await signIn.create({ identifier: email });
-
-   
-    await waitMin(MIN_A);
-
-    
-    nav("/boot/b");
-
-   
-    const emailFactor = si.supportedFirstFactors?.find(
-      (f) => f.strategy === "email_code"
-    );
-
-    const emailAddressId =
-      emailFactor?.emailAddressId || emailFactor?.email_address_id;
-
-    if (!emailAddressId) {
-      throw new Error("Email code is enabled, but Clerk did not return an emailAddressId.");
+    if (isSignedIn) {
+      nav("/app/open", { replace: true });
+      return;
     }
 
-    await si.prepareFirstFactor({
-      strategy: "email_code",
-      emailAddressId,
-    });
-
-    
-    await new Promise((r) => setTimeout(r, MIN_B));
-
-  
-    nav("/verify");
-  } catch (e) {
-    console.error(e);
-
-    setError(
-      e?.errors?.[0]?.message ||
-        e?.message ||
-        "Could not start sign-in. Check your email and try again."
-    );
+    setError("");
 
    
-    nav("/", { replace: true });
+    nav("/boot/a");
+
+    const start = Date.now();
+    const MIN_A = 650;
+    const MIN_B = 650;
+
+    const waitMin = async (ms) => {
+      const elapsed = Date.now() - start;
+      const remaining = ms - elapsed;
+      if (remaining > 0) await new Promise((r) => setTimeout(r, remaining));
+    };
+
+    const goVerify = async () => {
+      await new Promise((r) => setTimeout(r, MIN_B));
+      nav("/verify");
+    };
+
+    try {
+   
+      const si = await signIn.create({ identifier: email });
+
+      await waitMin(MIN_A);
+      nav("/boot/b");
+
+      const emailFactor = si.supportedFirstFactors?.find(
+        (f) => f.strategy === "email_code"
+      );
+
+      const emailAddressId =
+        emailFactor?.emailAddressId || emailFactor?.email_address_id;
+
+      if (!emailAddressId) {
+        throw new Error(
+          "Email code is enabled, but Clerk did not return an emailAddressId."
+        );
+      }
+
+      await si.prepareFirstFactor({
+        strategy: "email_code",
+        emailAddressId,
+      });
+
+      sessionStorage.setItem("AUTH_FLOW", "signin");
+      await goVerify();
+    } catch (e) {
+      const msg = (e?.errors?.[0]?.message || e?.message || "").toLowerCase();
+
+      
+      if (msg.includes("couldn't find your account") || msg.includes("not found")) {
+        try {
+          await waitMin(MIN_A);
+          nav("/boot/b");
+
+       await signUp.create({ emailAddress: email });
+       await signUp.update({
+       firstName: "Student",
+       lastName: "User",
+       });
+
+await signUp.prepareEmailAddressVerification({
+  strategy: "email_code",
+});
+
+          sessionStorage.setItem("AUTH_FLOW", "signup");
+          await goVerify();
+          return;
+        } catch (e2) {
+          console.error(e2);
+          setError(
+            e2?.errors?.[0]?.message ||
+              e2?.message ||
+              "Could not start sign-up. Please try again."
+          );
+          nav("/", { replace: true });
+          return;
+        }
+      }
+
+      console.error(e);
+      setError(
+        e?.errors?.[0]?.message ||
+          e?.message ||
+          "Could not start sign-in. Check your email and try again."
+      );
+      nav("/", { replace: true });
+    }
   }
-}
 
   return (
     <div style={{ height: "100%", display: "grid", placeItems: "center", padding: 20 }}>
@@ -97,7 +129,7 @@ async function onContinue() {
 
         <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Lexi Drift</div>
         <div style={{ color: "var(--muted)", fontSize: 13, marginBottom: 18 }}>
-          Enter your student email to login
+          Enter your student email to continue
         </div>
 
         <div

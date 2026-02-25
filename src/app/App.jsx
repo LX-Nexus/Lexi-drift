@@ -2,5 +2,14 @@ import { useRoutes } from "react-router-dom";
 import { routes } from "./routes";
 
 export default function App() {
-  return useRoutes(routes);
+  const element = useRoutes(routes);
+
+  return (
+    <>
+      {element}
+
+    
+      <div id="clerk-captcha" />
+    </>
+  );
 }
